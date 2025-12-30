@@ -1,42 +1,45 @@
-use indexmap::IndexSet;
+use std::collections::BTreeMap;
+
 use superconsole::{Component, Dimensions, DrawMode, Line, Lines, SuperConsole};
 use superconsole::{Span, components::DrawVertical, style::Color};
 
 pub struct Scons {
     console: Option<SuperConsole>,
-    names: IndexSet<String>,
+    names: BTreeMap<usize, String>,
 }
 
 impl Scons {
     pub fn new() -> Self {
         Self {
             console: SuperConsole::new(),
-            names: IndexSet::new(),
+            names: BTreeMap::new(),
         }
     }
 
-    pub fn insert(&mut self, name: String) {
-        self.names.insert(name);
+    pub fn insert(&mut self, id: usize, name: String) {
+        self.names.insert(id, name);
 
         if let Some(console) = &mut self.console {
             console.render(&Root { names: &self.names }).unwrap();
         }
     }
 
-    pub fn remove(&mut self, name: &str, res: &crate::Result) {
-        self.names.shift_remove(name);
+    pub fn remove(&mut self, id: usize, res: &crate::Result) -> String {
+        let name = self.names.remove(&id).expect("id must be present");
 
-        let line = [span_res(name, res)].into_iter().collect::<Line>();
+        let line = [span_res(&name, res)].into_iter().collect::<Line>();
 
         if let Some(console) = &mut self.console {
             if !matches!(res, crate::Result::Branch(_)) {
-                console.emit([line].into_iter().collect())
+                console.emit([line].into_iter().collect());
             }
 
             console.render(&Root { names: &self.names }).unwrap();
         } else {
             println!("{}", line.render());
         }
+
+        name
     }
 
     pub fn finalize(self) {
@@ -65,7 +68,7 @@ fn span_res(name: &str, res: &crate::Result) -> Span {
 }
 
 struct Root<'a> {
-    names: &'a IndexSet<String>,
+    names: &'a BTreeMap<usize, String>,
 }
 
 impl Component for Root<'_> {
@@ -77,14 +80,14 @@ impl Component for Root<'_> {
 }
 
 struct InProgressList<'a> {
-    names: &'a IndexSet<String>,
+    names: &'a BTreeMap<usize, String>,
 }
 
 impl Component for InProgressList<'_> {
     fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
         let mut lines = Lines::new();
 
-        for name in self.names.iter().take(10) {
+        for name in self.names.values().take(10) {
             lines.push(Line::sanitized(name));
         }
 

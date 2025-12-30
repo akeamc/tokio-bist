@@ -132,7 +132,7 @@ pub trait TestCase: Send {
 /// Create a new test case from a function.
 pub fn test_fn<F, Fut>(name: impl Into<String>, f: F) -> Box<dyn TestCase>
 where
-    F: Fn() -> Fut + Send + 'static,
+    F: FnOnce() -> Fut + Send + 'static,
     Fut: Future<Output = Result> + Send + 'static,
 {
     struct TestFn<F> {
@@ -142,7 +142,7 @@ where
 
     impl<F, Fut> TestCase for TestFn<F>
     where
-        F: Fn() -> Fut + Send + 'static,
+        F: FnOnce() -> Fut + Send + 'static,
         Fut: Future<Output = Result> + Send + 'static,
     {
         fn name(&self) -> String {

@@ -27,15 +27,15 @@ impl Scons {
     pub fn remove(&mut self, id: usize, res: &crate::Result) -> String {
         let name = self.names.remove(&id).expect("id must be present");
 
-        let line = [span_res(&name, res)].into_iter().collect::<Line>();
+        let line = res_line(&name, res);
 
         if let Some(console) = &mut self.console {
-            if !matches!(res, crate::Result::Branch(_)) {
-                console.emit([line].into_iter().collect());
+            if let Some(line) = line {
+                console.emit(Lines(vec![line]));
             }
 
             console.render(&Root { names: &self.names }).unwrap();
-        } else {
+        } else if let Some(line) = line {
             println!("{}", line.render());
         }
 
@@ -49,22 +49,18 @@ impl Scons {
     }
 }
 
-fn span_res(name: &str, res: &crate::Result) -> Span {
-    let color = match res {
-        crate::Result::Ok => Color::Green,
-        crate::Result::Warn(_) => Color::Yellow,
-        crate::Result::Err(_) => Color::Red,
-        crate::Result::Branch(_) => Color::Grey,
+fn res_line(name: &str, res: &crate::Result) -> Option<Line> {
+    let (color, text) = match res {
+        crate::Result::Ok => (Color::Green, format!("{name} OK")),
+        crate::Result::Warn(warn) => (Color::Yellow, format!("{name} WARN: {warn}")),
+        crate::Result::Err(err) => (Color::Red, format!("{name} ERROR: {err:#}")),
+        crate::Result::Branch(branches) if branches.is_empty() => {
+            (Color::Yellow, format!("{name} EMPTY"))
+        }
+        crate::Result::Branch(_) => return None,
     };
 
-    let text = match res {
-        crate::Result::Ok => format!("{name} OK"),
-        crate::Result::Warn(warn) => format!("{name} WARN: {warn}"),
-        crate::Result::Err(err) => format!("{name} ERROR: {err:#}"),
-        crate::Result::Branch(_) => String::new(),
-    };
-
-    Span::new_colored_lossy(&text, color)
+    Some(Line::from_iter([Span::new_colored_lossy(&text, color)]))
 }
 
 struct Root<'a> {

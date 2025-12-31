@@ -15,9 +15,70 @@ use crate::scons::Scons;
 
 mod scons;
 
+/// The result of a successful test case execution.
+#[must_use]
+pub struct Success {
+    /// Optional warning message.
+    warning: Option<anyhow::Error>,
+    /// Branch off into more sub-cases. Implies that the parent test case passed.
+    branches: Vec<Box<dyn TestCase>>,
+}
+
+impl Success {
+    /// Create a success result with no warning and no branches.
+    pub fn ok() -> Self {
+        Self {
+            warning: None,
+            branches: vec![],
+        }
+    }
+
+    /// Create a success result with a warning and no branches.
+    pub fn warn(warning: anyhow::Error) -> Self {
+        Self {
+            warning: Some(warning),
+            branches: vec![],
+        }
+    }
+
+    /// Create a success result with branches and no warning.
+    pub fn branch(branches: Vec<Box<dyn TestCase>>) -> Self {
+        Self {
+            warning: None,
+            branches,
+        }
+    }
+
+    /// Create a success result with both a warning and branches.
+    pub fn warn_and_branch(warning: anyhow::Error, branches: Vec<Box<dyn TestCase>>) -> Self {
+        Self {
+            warning: Some(warning),
+            branches,
+        }
+    }
+
+    /// Get the warning, if any.
+    #[must_use]
+    pub fn warning(&self) -> Option<&anyhow::Error> {
+        self.warning.as_ref()
+    }
+
+    /// Get the branches.
+    #[must_use]
+    pub fn branches(&self) -> &[Box<dyn TestCase>] {
+        &self.branches
+    }
+
+    /// Consume self and return the branches.
+    #[must_use]
+    pub fn into_branches(self) -> Vec<Box<dyn TestCase>> {
+        self.branches
+    }
+}
+
 /// The runner keeps track of all tests.
 pub struct Runner {
-    js: JoinSet<(usize, Result)>,
+    js: JoinSet<(usize, anyhow::Result<Success>)>,
     scons: Scons,
     n_spawned: usize,
 }
@@ -82,15 +143,13 @@ impl Runner {
             let name = self.scons.remove(id, &res);
 
             match res {
-                Result::Ok => {}
-                Result::Warn(_warn) => {}
-                Result::Err(_err) => {
-                    errored = true;
-                }
-                Result::Branch(branch) => {
-                    for case in branch {
+                Ok(success) => {
+                    for case in success.into_branches() {
                         self.spawn(&name, case);
                     }
+                }
+                Err(_err) => {
+                    errored = true;
                 }
             }
         }
@@ -107,33 +166,20 @@ impl Runner {
     }
 }
 
-/// A test case result.
-#[must_use]
-pub enum Result {
-    /// Pass!
-    Ok,
-    /// Passed with warnings.
-    Warn(anyhow::Error),
-    /// Error!
-    Err(anyhow::Error),
-    /// Branch off into more sub-cases. Implies that the parent test case passed.
-    Branch(Vec<Box<dyn TestCase>>),
-}
-
 /// A node in the test tree. The easiest way to create one is with [`test_fn`].
 pub trait TestCase: Send {
     /// The name of the test case.
     fn name(&self) -> String;
 
     /// Run the test case. You should not call this directly; use [`Runner::run`] instead.
-    fn run(self: Box<Self>) -> BoxFuture<'static, Result>;
+    fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>>;
 }
 
 /// Create a new test case from a function.
 pub fn test_fn<F, Fut>(name: impl Into<String>, f: F) -> Box<dyn TestCase>
 where
     F: FnOnce() -> Fut + Send + 'static,
-    Fut: Future<Output = Result> + Send + 'static,
+    Fut: Future<Output = anyhow::Result<Success>> + Send + 'static,
 {
     struct TestFn<F> {
         name: String,
@@ -143,13 +189,13 @@ where
     impl<F, Fut> TestCase for TestFn<F>
     where
         F: FnOnce() -> Fut + Send + 'static,
-        Fut: Future<Output = Result> + Send + 'static,
+        Fut: Future<Output = anyhow::Result<Success>> + Send + 'static,
     {
         fn name(&self) -> String {
             self.name.clone()
         }
 
-        fn run(self: Box<Self>) -> BoxFuture<'static, Result> {
+        fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>> {
             (self.f)().boxed()
         }
     }

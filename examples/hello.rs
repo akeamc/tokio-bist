@@ -7,7 +7,7 @@ use rand::{
     distr::{Distribution, Uniform},
 };
 use tokio::time::sleep;
-use tokio_bist::{Runner, TestCase};
+use tokio_bist::{Runner, Success, TestCase};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,12 +26,12 @@ impl TestCase for RandomBrancher {
         format!("{}", self.pid)
     }
 
-    fn run(self: Box<Self>) -> BoxFuture<'static, tokio_bist::Result> {
+    fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>> {
         let ret = if self.depth >= 3 {
             if rand::random() {
-                tokio_bist::Result::Ok
+                Ok(Success::ok())
             } else {
-                tokio_bist::Result::Warn(anyhow!("Random warning"))
+                Ok(Success::warn(anyhow!("Random warning")))
             }
         } else {
             let mut rng = rand::rng();
@@ -45,7 +45,7 @@ impl TestCase for RandomBrancher {
                     pid: rng.random(),
                 }) as Box<dyn TestCase>);
             }
-            tokio_bist::Result::Branch(branches)
+            Ok(Success::branch(branches))
         };
 
         Box::pin(async move {

@@ -29,15 +29,9 @@ impl TestCase for RandomBrancher {
     fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>> {
         let ret = if self.depth >= 3 {
             if rand::random() {
-                Ok(Success {
-                    warning: None,
-                    branches: vec![],
-                })
+                Ok(Success::ok())
             } else {
-                Ok(Success {
-                    warning: Some(anyhow!("Random warning")),
-                    branches: vec![],
-                })
+                Ok(Success::warn(anyhow!("Random warning")))
             }
         } else {
             let mut rng = rand::rng();
@@ -51,10 +45,7 @@ impl TestCase for RandomBrancher {
                     pid: rng.random(),
                 }) as Box<dyn TestCase>);
             }
-            Ok(Success {
-                warning: None,
-                branches,
-            })
+            Ok(Success::branch(branches))
         };
 
         Box::pin(async move {

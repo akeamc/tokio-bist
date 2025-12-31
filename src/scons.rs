@@ -52,9 +52,9 @@ impl Scons {
 fn res_line(name: &str, res: &anyhow::Result<crate::Success>) -> Option<Line> {
     let (color, text) = match res {
         Ok(success) => {
-            if let Some(warn) = &success.warning {
+            if let Some(warn) = success.warning() {
                 (Color::Yellow, format!("{name} WARN: {warn}"))
-            } else if success.branches.is_empty() {
+            } else if success.branches().is_empty() {
                 (Color::Green, format!("{name} OK"))
             } else {
                 return None;

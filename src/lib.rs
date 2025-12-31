@@ -19,9 +19,61 @@ mod scons;
 #[must_use]
 pub struct Success {
     /// Optional warning message.
-    pub warning: Option<anyhow::Error>,
+    warning: Option<anyhow::Error>,
     /// Branch off into more sub-cases. Implies that the parent test case passed.
-    pub branches: Vec<Box<dyn TestCase>>,
+    branches: Vec<Box<dyn TestCase>>,
+}
+
+impl Success {
+    /// Create a success result with no warning and no branches.
+    pub fn ok() -> Self {
+        Self {
+            warning: None,
+            branches: vec![],
+        }
+    }
+
+    /// Create a success result with a warning and no branches.
+    pub fn warn(warning: anyhow::Error) -> Self {
+        Self {
+            warning: Some(warning),
+            branches: vec![],
+        }
+    }
+
+    /// Create a success result with branches and no warning.
+    pub fn branch(branches: Vec<Box<dyn TestCase>>) -> Self {
+        Self {
+            warning: None,
+            branches,
+        }
+    }
+
+    /// Create a success result with both a warning and branches.
+    pub fn warn_and_branch(warning: anyhow::Error, branches: Vec<Box<dyn TestCase>>) -> Self {
+        Self {
+            warning: Some(warning),
+            branches,
+        }
+    }
+
+    /// Get the warning, if any.
+    #[must_use]
+    pub fn warning(&self) -> Option<&anyhow::Error> {
+        self.warning.as_ref()
+    }
+
+    /// Get the branches.
+    #[must_use]
+    pub fn branches(&self) -> &[Box<dyn TestCase>] {
+        &self.branches
+    }
+
+    /// Consume self and return the branches.
+    #[must_use]
+    pub fn into_branches(self) -> Vec<Box<dyn TestCase>> {
+        self.branches
+    }
 }
 
 /// The runner keeps track of all tests.
@@ -92,7 +144,7 @@ impl Runner {
 
             match res {
                 Ok(success) => {
-                    for case in success.branches {
+                    for case in success.into_branches() {
                         self.spawn(&name, case);
                     }
                 }

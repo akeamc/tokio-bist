@@ -24,7 +24,7 @@ impl Scons {
         }
     }
 
-    pub fn remove(&mut self, id: usize, res: &crate::Result) -> String {
+    pub fn remove(&mut self, id: usize, res: &anyhow::Result<crate::Success>) -> String {
         let name = self.names.remove(&id).expect("id must be present");
 
         let line = res_line(&name, res);
@@ -49,15 +49,18 @@ impl Scons {
     }
 }
 
-fn res_line(name: &str, res: &crate::Result) -> Option<Line> {
+fn res_line(name: &str, res: &anyhow::Result<crate::Success>) -> Option<Line> {
     let (color, text) = match res {
-        crate::Result::Ok => (Color::Green, format!("{name} OK")),
-        crate::Result::Warn(warn) => (Color::Yellow, format!("{name} WARN: {warn}")),
-        crate::Result::Err(err) => (Color::Red, format!("{name} ERROR: {err:#}")),
-        crate::Result::Branch(branches) if branches.is_empty() => {
-            (Color::Yellow, format!("{name} EMPTY"))
+        Ok(success) => {
+            if let Some(warn) = &success.warning {
+                (Color::Yellow, format!("{name} WARN: {warn}"))
+            } else if success.branches.is_empty() {
+                (Color::Green, format!("{name} OK"))
+            } else {
+                return None;
+            }
         }
-        crate::Result::Branch(_) => return None,
+        Err(err) => (Color::Red, format!("{name} ERROR: {err:#}")),
     };
 
     Some(Line::from_iter([Span::new_colored_lossy(&text, color)]))

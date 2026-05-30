@@ -8,6 +8,7 @@
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
+use eyre::eyre;
 use futures_util::{FutureExt, future::BoxFuture};
 use tokio::task::JoinSet;
 
@@ -19,7 +20,7 @@ mod scons;
 #[must_use]
 pub struct Success {
     /// Optional warning message.
-    warning: Option<anyhow::Error>,
+    warning: Option<eyre::Report>,
     /// Branch off into more sub-cases. Implies that the parent test case passed.
     branches: Vec<Box<dyn TestCase>>,
 }
@@ -34,7 +35,7 @@ impl Success {
     }
 
     /// Create a success result with a warning and no branches.
-    pub fn warn(warning: anyhow::Error) -> Self {
+    pub fn warn(warning: eyre::Report) -> Self {
         Self {
             warning: Some(warning),
             branches: vec![],
@@ -50,7 +51,7 @@ impl Success {
     }
 
     /// Create a success result with both a warning and branches.
-    pub fn warn_and_branch(warning: anyhow::Error, branches: Vec<Box<dyn TestCase>>) -> Self {
+    pub fn warn_and_branch(warning: eyre::Report, branches: Vec<Box<dyn TestCase>>) -> Self {
         Self {
             warning: Some(warning),
             branches,
@@ -59,7 +60,7 @@ impl Success {
 
     /// Get the warning, if any.
     #[must_use]
-    pub fn warning(&self) -> Option<&anyhow::Error> {
+    pub fn warning(&self) -> Option<&eyre::Report> {
         self.warning.as_ref()
     }
 
@@ -78,7 +79,7 @@ impl Success {
 
 /// The runner keeps track of all tests.
 pub struct Runner {
-    js: JoinSet<(usize, anyhow::Result<Success>)>,
+    js: JoinSet<(usize, eyre::Result<Success>)>,
     scons: Scons,
     n_spawned: usize,
 }
@@ -128,7 +129,7 @@ impl Runner {
     /// # Errors
     ///
     /// This function will return an error if any of the tests fail.
-    pub async fn run(mut self, entrypoint: Box<dyn TestCase>) -> anyhow::Result<()> {
+    pub async fn run(mut self, entrypoint: Box<dyn TestCase>) -> eyre::Result<()> {
         self.spawn("", entrypoint);
 
         let mut errored = false;
@@ -157,7 +158,7 @@ impl Runner {
         self.scons.finalize();
 
         if errored {
-            Err(anyhow::anyhow!("One or more checks failed"))
+            Err(eyre!("One or more checks failed"))
         } else {
             eprintln!("All checks passed!");
 
@@ -172,14 +173,14 @@ pub trait TestCase: Send {
     fn name(&self) -> String;
 
     /// Run the test case. You should not call this directly; use [`Runner::run`] instead.
-    fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>>;
+    fn run(self: Box<Self>) -> BoxFuture<'static, eyre::Result<Success>>;
 }
 
 /// Create a new test case from a function.
 pub fn test_fn<F, Fut>(name: impl Into<String>, f: F) -> Box<dyn TestCase>
 where
     F: FnOnce() -> Fut + Send + 'static,
-    Fut: Future<Output = anyhow::Result<Success>> + Send + 'static,
+    Fut: Future<Output = eyre::Result<Success>> + Send + 'static,
 {
     struct TestFn<F> {
         name: String,
@@ -189,13 +190,13 @@ where
     impl<F, Fut> TestCase for TestFn<F>
     where
         F: FnOnce() -> Fut + Send + 'static,
-        Fut: Future<Output = anyhow::Result<Success>> + Send + 'static,
+        Fut: Future<Output = eyre::Result<Success>> + Send + 'static,
     {
         fn name(&self) -> String {
             self.name.clone()
         }
 
-        fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>> {
+        fn run(self: Box<Self>) -> BoxFuture<'static, eyre::Result<Success>> {
             (self.f)().boxed()
         }
     }

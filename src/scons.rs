@@ -24,7 +24,7 @@ impl Scons {
         }
     }
 
-    pub fn remove(&mut self, id: usize, res: &anyhow::Result<crate::Success>) -> String {
+    pub fn remove(&mut self, id: usize, res: &eyre::Result<crate::Success>) -> String {
         let name = self.names.remove(&id).expect("id must be present");
 
         let line = res_line(&name, res);
@@ -49,7 +49,7 @@ impl Scons {
     }
 }
 
-fn res_line(name: &str, res: &anyhow::Result<crate::Success>) -> Option<Line> {
+fn res_line(name: &str, res: &eyre::Result<crate::Success>) -> Option<Line> {
     let (color, text) = match res {
         Ok(success) => {
             if let Some(warn) = success.warning() {

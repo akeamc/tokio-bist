@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::anyhow;
+use eyre::eyre;
 use futures_util::future::BoxFuture;
 use rand::{
     Rng,
@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use tokio_bist::{Runner, Success, TestCase};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> eyre::Result<()> {
     Runner::new()
         .run(Box::new(RandomBrancher { depth: 0, pid: 0 }))
         .await
@@ -26,12 +26,12 @@ impl TestCase for RandomBrancher {
         format!("{}", self.pid)
     }
 
-    fn run(self: Box<Self>) -> BoxFuture<'static, anyhow::Result<Success>> {
+    fn run(self: Box<Self>) -> BoxFuture<'static, eyre::Result<Success>> {
         let ret = if self.depth >= 3 {
             if rand::random() {
                 Ok(Success::ok())
             } else {
-                Ok(Success::warn(anyhow!("Random warning")))
+                Ok(Success::warn(eyre!("Random warning")))
             }
         } else {
             let mut rng = rand::rng();
